@@ -1,0 +1,70 @@
+version: '3'
+
+# Common Airflow Configuration and Environment params
+x-airflow-common:
+  &airflow-common
+  build: . 
+  environment:
+    &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__CORE__FERNET_KEY: ''
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+    AIRFLOW__WEBSERVER__SECRET_KEY: '42'
+  user: "${AIRFLOW_UID:-50000}:0"
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./models:/opt/airflow/models
+    - ./data:/opt/airflow/data
+
+services:
+  # Postgres DataBase
+  postgres:
+    image: postgres:latest
+    restart: always
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+
+  # AirFlow Webserver: The User Interface (UI) of Airflow
+  webserver:
+    <<: *airflow-common
+    restart: always
+    depends_on:
+      - postgres
+      - airflow-init
+    ports:
+      - "8080:8080"
+    command: webserver
+
+  # AirFlow Scheduler: Monitors all tasks and triggers the task as needed
+  scheduler:
+    <<: *airflow-common
+    restart: always
+    depends_on:
+      - postgres
+      - airflow-init
+    command: scheduler
+
+  airflow-init:
+    <<: *airflow-common
+    command: version
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_UPGRADE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: airflow
+      _AIRFLOW_WWW_USER_PASSWORD: test123
+      _PIP_ADDITIONAL_REQUIREMENTS: ''
+
+  s3:
+     image: adobe/s3mock:2.11.0
+     ports:
+      - "9090:9090"
+      - "9091:9091"
+     environment:
+      - initialBuckets=models
