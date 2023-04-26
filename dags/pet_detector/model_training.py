@@ -9,7 +9,7 @@ from shared import label_func
 images_path = Path('/home/airflow/.fastai/data/oxford-iiit-pet/images')
 data_set_path = Path('/opt/airflow/models')
 
-files = get_image_files(images_path)[:50]
+files = get_image_files(images_path)[:500]
 
 # Setup convolutional neural network (cnn)
 dls = ImageDataLoaders.from_name_func(
