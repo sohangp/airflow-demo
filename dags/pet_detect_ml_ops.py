@@ -6,8 +6,7 @@ from airflow.utils.trigger_rule import TriggerRule
 from airflow.operators.bash import BashOperator
 
 from pet_detector.data_ingest import get_pet_detector_training_data
-from pet_detector.push_to_s3 import upload_file_to_s3
-from pet_detector.validate_model import validate_success
+from pet_detector.push_to_s3 import upload_file_to_s3 
 
 # ML Ops DAG, does the below
 # 1. Gets the Pet Images from Oxford-IIIT Pet Dataset.
@@ -57,10 +56,21 @@ def PetDetectMLOpp():
         upload_file_to_s3(endpoint_url, bucket_name, key, file_path)
 
     # Run Sample predictions
-    @task(task_id="Validate-New-Model", trigger_rule=TriggerRule.ALL_SUCCESS)
-    def validate_new_model():
-        print("Starting the Validate-New-Model Task.")
-        validate_success()
+    # @task(task_id="Validate-New-Model", trigger_rule=TriggerRule.ALL_SUCCESS)
+    # def validate_new_model():
+    #     print("Starting the Validate-New-Model Task.")
+    #     validate_success()
+
+    validate_new_model_bash_command = '''
+       echo "Starting the Validate-New-Model Task."
+       python3 /opt/airflow/dags/pet_detector/validate_model.py
+       echo "Finished the Validate-New-Model Task."
+    '''
+    validate_new_model = BashOperator(
+        task_id='Validate-New-Model',
+        bash_command=validate_new_model_bash_command,
+        trigger_rule=TriggerRule.ONE_SUCCESS
+    )
 
     # Run Docker commands to mimic deployment to an external application.
     @task(task_id="Deploy-Pet-Detection-Service", trigger_rule=TriggerRule.ALL_SUCCESS)
@@ -68,7 +78,7 @@ def PetDetectMLOpp():
         print("Starting the Deploy-Pet-Detection-Service Task.")
 
     # The Flow
-    get_training_data() >> train_model >> upload_model() >> validate_new_model() >> deploy_ml_service()
+    get_training_data() >> train_model >> upload_model() >> validate_new_model >> deploy_ml_service()
 
 
 pet_ml_ol = PetDetectMLOpp()
